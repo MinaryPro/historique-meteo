@@ -1,1 +1,599 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="dark" />
+<title>Paris Montsouris — Relevés météo</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --bg:#000000;
+    --bg2:#1c1c1e;
+    --bg3:#2c2c2e;
+    --bg3-hover:#3a3a3c;
+    --text:#f5f5f7;
+    --text-secondary:#98989d;
+    --separator:rgba(255,255,255,0.09);
+    --blue:#0a84ff;
+    --blue-hover:#3aa0ff;
+    --purple:#bf5af2;
+    --purple-hover:#d287f7;
+    --red:#ff453a;
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  html,body{margin:0;padding:0;background:var(--bg);}
+  body{
+    color:var(--text);
+    font-family:-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Helvetica, Arial, sans-serif;
+    font-size:15px;
+    line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+  }
+  .mono{ font-family: ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Consolas, monospace; }
+  a{color:var(--blue); text-decoration:none;}
+  a:hover{text-decoration:underline;}
+
+  /* Sticky nav */
+  nav.top{
+    position:sticky; top:0; z-index:20;
+    backdrop-filter:saturate(180%) blur(20px);
+    -webkit-backdrop-filter:saturate(180%) blur(20px);
+    background:rgba(0,0,0,0.72);
+    border-bottom:1px solid var(--separator);
+  }
+  nav.top .inner{
+    max-width:980px; margin:0 auto; padding:14px 24px;
+    display:flex; align-items:center; justify-content:space-between;
+  }
+  nav.top .brand{font-size:14px; font-weight:600; letter-spacing:-0.01em;}
+  nav.top .links{display:flex; gap:26px;}
+  nav.top .links a{color:var(--text-secondary); font-size:13px;}
+  nav.top .links a:hover{color:var(--text); text-decoration:none;}
+
+  .wrap{max-width:980px; margin:0 auto; padding:0 24px;}
+
+  /* Hero */
+  header.hero{
+    text-align:center;
+    padding:96px 24px 72px;
+    max-width:760px;
+    margin:0 auto;
+  }
+  header.hero .eyebrow{
+    font-size:13px; color:var(--text-secondary); margin-bottom:14px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  header.hero h1{
+    font-size:clamp(38px, 6vw, 60px);
+    font-weight:600;
+    letter-spacing:-0.02em;
+    margin:0 0 20px;
+    background:linear-gradient(180deg, #fff 0%, #d8d8dc 100%);
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+  }
+  header.hero p{
+    font-size:19px;
+    color:var(--text-secondary);
+    margin:0;
+    font-weight:400;
+  }
+  header.hero p a{color:var(--text-secondary); text-decoration:underline; text-underline-offset:2px;}
+
+  section.block{padding:64px 0;}
+  section.block + section.block{border-top:1px solid var(--separator);}
+  .section-head{margin-bottom:36px;}
+  .section-head h2{
+    font-size:32px; font-weight:600; letter-spacing:-0.01em; margin:0 0 8px;
+  }
+  .section-head p{margin:0; color:var(--text-secondary); font-size:16px;}
+
+  .panels{display:grid; grid-template-columns:1fr 1fr; gap:20px;}
+  @media (max-width:820px){ .panels{grid-template-columns:1fr;} }
+
+  .panel{
+    background:var(--bg2);
+    border:1px solid var(--separator);
+    border-radius:22px;
+    overflow:hidden;
+  }
+  .panel-head{padding:26px 26px 18px;}
+  .badge{
+    display:inline-flex; align-items:center;
+    font-size:12px; font-weight:600;
+    padding:4px 10px; border-radius:980px;
+    margin-bottom:14px;
+  }
+  .badge.blue{background:rgba(10,132,255,0.16); color:var(--blue);}
+  .badge.purple{background:rgba(191,90,242,0.16); color:var(--purple);}
+  .panel h3{font-size:19px; font-weight:600; margin:0 0 6px; letter-spacing:-0.005em;}
+  .panel-head p{margin:0; color:var(--text-secondary); font-size:13.5px;}
+  .panel-body{padding:6px 26px 26px;}
+
+  .field-row{display:flex; gap:12px; margin-bottom:18px;}
+  .field{flex:1; display:flex; flex-direction:column; gap:7px;}
+  .field label{font-size:12.5px; color:var(--text-secondary);}
+  .field input[type=date]{
+    font-family:inherit;
+    font-size:14px;
+    padding:10px 12px;
+    border:1px solid var(--separator);
+    border-radius:12px;
+    background:var(--bg3);
+    color:var(--text);
+    color-scheme:dark;
+  }
+  .field input[type=date]:focus{outline:2px solid var(--blue); outline-offset:1px;}
+  .panel.fine .field input[type=date]:focus{outline-color:var(--purple);}
+
+  .var-legend{font-size:12.5px; color:var(--text-secondary); margin:4px 0 12px;}
+  .var-grid{display:grid; grid-template-columns:1fr 1fr; gap:8px 14px; margin-bottom:20px;}
+  .var-item{display:flex; align-items:center; gap:8px; font-size:13.5px;}
+  .var-item input{accent-color:var(--blue); width:16px; height:16px;}
+  .panel.fine .var-item input{accent-color:var(--purple);}
+  .var-item.mandatory{color:var(--text-secondary);}
+
+  button.run{
+    font-family:inherit; font-size:14.5px; font-weight:600;
+    padding:13px 20px; border:none; border-radius:980px;
+    background:var(--blue); color:#fff; cursor:pointer; width:100%;
+    transition:background 0.15s ease;
+  }
+  button.run:hover{background:var(--blue-hover);}
+  .panel.fine button.run{background:var(--purple);}
+  .panel.fine button.run:hover{background:var(--purple-hover);}
+  button.run:disabled{opacity:0.45; cursor:progress;}
+
+  .status{margin-top:12px; font-size:12.5px; min-height:16px; color:var(--text-secondary);}
+  .status.error{color:var(--red);}
+
+  .result{margin-top:22px;}
+  .result-head{display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; gap:10px;}
+  .result-head span{font-size:12px; color:var(--text-secondary);}
+  button.download{
+    font-family:inherit; font-size:12.5px; font-weight:600;
+    padding:8px 16px; border:1px solid var(--separator); border-radius:980px;
+    background:transparent; color:var(--text); cursor:pointer; white-space:nowrap;
+    transition:background 0.15s ease;
+  }
+  button.download:hover{background:var(--bg3);}
+  button.download:disabled{opacity:0.35; cursor:not-allowed;}
+
+  .table-scroll{max-height:340px; overflow:auto; border:1px solid var(--separator); border-radius:14px;}
+  table{border-collapse:collapse; width:100%; font-size:12.5px;}
+  thead th{
+    position:sticky; top:0;
+    background:var(--bg2);
+    text-align:left; padding:10px 12px;
+    border-bottom:1px solid var(--separator);
+    white-space:nowrap; color:var(--text-secondary); font-weight:600;
+  }
+  tbody td{padding:8px 12px; border-bottom:1px solid var(--separator); white-space:nowrap;}
+  tbody tr:hover{background:var(--bg3);}
+  .pill-storm{
+    display:inline-block; padding:2px 9px; border-radius:980px;
+    background:rgba(255,69,58,0.16); color:var(--red); font-weight:600; font-size:11.5px;
+  }
+
+  footer.notes{
+    border-top:1px solid var(--separator);
+    padding:40px 24px 80px;
+    color:var(--text-secondary);
+    font-size:12px;
+    max-width:760px;
+    margin:0 auto;
+    line-height:1.6;
+  }
+  footer.notes p{margin:0 0 12px;}
+  footer.notes a{color:var(--text-secondary); text-decoration:underline; text-underline-offset:2px;}
+</style>
+</head>
+<body>
+
+<nav class="top">
+  <div class="inner">
+    <span class="brand">Paris Montsouris</span>
+    <span class="links">
+      <a href="#historique">Historique</a>
+      <a href="#previsions">Prévisions</a>
+    </span>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="eyebrow mono">Station 07156 · 48.821° N, 2.337° E</div>
+  <h1>Météo du parc Montsouris</h1>
+  <p>Historique et prévisions à télécharger, en moyenne horaire ou au pas de 15 minutes, avec température, vent, précipitations et détection d'orage. Données <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a>, sans inscription ni clé.</p>
+</header>
+
+<div class="wrap">
+
+  <section class="block" id="historique">
+    <div class="section-head">
+      <h2>Historique</h2>
+      <p>Dates passées, jusqu'en 1940.</p>
+    </div>
+    <div class="panels">
+      <section class="panel hourly" data-panel="a">
+        <div class="panel-head">
+          <span class="badge blue">Horaire</span>
+          <h3>Moyenne horaire</h3>
+          <p>Réanalyse ERA5 / ERA5-Land, 1940 à aujourd'hui, résolution ~9 km.</p>
+        </div>
+        <div class="panel-body">
+          <div class="field-row">
+            <div class="field"><label for="a-start">Début</label><input type="date" id="a-start" min="1940-01-01"></div>
+            <div class="field"><label for="a-end">Fin</label><input type="date" id="a-end" min="1940-01-01"></div>
+          </div>
+          <div class="var-legend">Variables à inclure (la température est toujours présente)</div>
+          <div class="var-grid" id="a-vars"></div>
+          <button class="run" id="a-run">Récupérer les données horaires</button>
+          <div class="status" id="a-status"></div>
+          <div class="result" id="a-result" style="display:none;">
+            <div class="result-head"><span id="a-count"></span><button class="download" id="a-download">Télécharger en Excel (.xlsx)</button></div>
+            <div class="table-scroll"><table id="a-table"></table></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel fine" data-panel="b">
+        <div class="panel-head">
+          <span class="badge purple">15 minutes</span>
+          <h3>Pas de temps fin</h3>
+          <p>Modèles AROME / ICON-D2. Disponible sur les ~92 derniers jours.</p>
+        </div>
+        <div class="panel-body">
+          <div class="field-row">
+            <div class="field"><label for="b-start">Début</label><input type="date" id="b-start"></div>
+            <div class="field"><label for="b-end">Fin</label><input type="date" id="b-end"></div>
+          </div>
+          <div class="var-legend">Variables à inclure (la température est toujours présente)</div>
+          <div class="var-grid" id="b-vars"></div>
+          <button class="run" id="b-run">Récupérer les données 15&nbsp;min</button>
+          <div class="status" id="b-status"></div>
+          <div class="result" id="b-result" style="display:none;">
+            <div class="result-head"><span id="b-count"></span><button class="download" id="b-download">Télécharger en Excel (.xlsx)</button></div>
+            <div class="table-scroll"><table id="b-table"></table></div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </section>
+
+  <section class="block" id="previsions">
+    <div class="section-head">
+      <h2>Prévisions</h2>
+      <p>Dates futures.</p>
+    </div>
+    <div class="panels">
+      <section class="panel hourly" data-panel="c">
+        <div class="panel-head">
+          <span class="badge blue">Horaire</span>
+          <h3>Prévision horaire</h3>
+          <p>Modèle meilleure correspondance, jusqu'à 16 jours à l'avance.</p>
+        </div>
+        <div class="panel-body">
+          <div class="field-row">
+            <div class="field"><label for="c-start">Début</label><input type="date" id="c-start"></div>
+            <div class="field"><label for="c-end">Fin</label><input type="date" id="c-end"></div>
+          </div>
+          <div class="var-legend">Variables à inclure (la température est toujours présente)</div>
+          <div class="var-grid" id="c-vars"></div>
+          <button class="run" id="c-run">Récupérer la prévision horaire</button>
+          <div class="status" id="c-status"></div>
+          <div class="result" id="c-result" style="display:none;">
+            <div class="result-head"><span id="c-count"></span><button class="download" id="c-download">Télécharger en Excel (.xlsx)</button></div>
+            <div class="table-scroll"><table id="c-table"></table></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel fine" data-panel="d">
+        <div class="panel-head">
+          <span class="badge purple">15 minutes</span>
+          <h3>Prévision fine</h3>
+          <p>AROME / ICON-D2, fiable surtout sur 2 à 4 jours.</p>
+        </div>
+        <div class="panel-body">
+          <div class="field-row">
+            <div class="field"><label for="d-start">Début</label><input type="date" id="d-start"></div>
+            <div class="field"><label for="d-end">Fin</label><input type="date" id="d-end"></div>
+          </div>
+          <div class="var-legend">Variables à inclure (la température est toujours présente)</div>
+          <div class="var-grid" id="d-vars"></div>
+          <button class="run" id="d-run">Récupérer la prévision 15&nbsp;min</button>
+          <div class="status" id="d-status"></div>
+          <div class="result" id="d-result" style="display:none;">
+            <div class="result-head"><span id="d-count"></span><button class="download" id="d-download">Télécharger en Excel (.xlsx)</button></div>
+            <div class="table-scroll"><table id="d-table"></table></div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </section>
+
+</div>
+
+<footer class="notes">
+  <p>Les quatre relevés proviennent de modèles météorologiques (réanalyse ERA5 / ERA5-Land pour l'historique long, AROME / ICON-D2 pour le pas de 15 minutes, modèle « meilleure correspondance » pour les échéances futures), calés sur la position du parc Montsouris — ce ne sont pas les relevés bruts de l'abri officiel de Météo-France. Pour les mesures brutes exactes de la station 07156, la source de référence reste <a href="https://meteo.data.gouv.fr" target="_blank" rel="noopener">meteo.data.gouv.fr</a> (gratuit, inscription nécessaire).</p>
+  <p>La colonne « Orage » se base sur le code temps OMM (95/96/99). Peu fiable sur l'historique horaire long terme ; plus pertinente sur les relevés 15 minutes et les prévisions.</p>
+  <p>Les données des 5 à 6 derniers jours peuvent être absentes de l'historique horaire (délai de traitement d'ERA5). Les prévisions perdent en fiabilité au-delà de quelques jours, en particulier au pas de 15 minutes.</p>
+</footer>
+
+<script>
+const LAT = 48.821, LON = 2.337;
+
+const VARS = [
+  { key:'temperature_2m',            label:'Température',                    unit:'°C',   a:true,  b:true,  c:true,  d:true,  mandatory:true, defaultOn:true },
+  { key:'apparent_temperature',      label:'Température ressentie',          unit:'°C',   a:true,  b:true,  c:true,  d:true,  defaultOn:false },
+  { key:'relative_humidity_2m',      label:'Humidité relative',              unit:'%',    a:true,  b:true,  c:true,  d:true,  defaultOn:false },
+  { key:'dew_point_2m',              label:'Point de rosée',                 unit:'°C',   a:true,  b:false, c:true,  d:false, defaultOn:false },
+  { key:'precipitation',             label:'Précipitations',                 unit:'mm',   a:true,  b:true,  c:true,  d:true,  defaultOn:true },
+  { key:'precipitation_probability', label:'Probabilité de précipitation',   unit:'%',    a:false, b:false, c:true,  d:false, defaultOn:true },
+  { key:'rain',                      label:'Pluie',                          unit:'mm',   a:true,  b:true,  c:true,  d:true,  defaultOn:false },
+  { key:'snowfall',                  label:'Neige',                          unit:'cm',   a:true,  b:true,  c:true,  d:true,  defaultOn:false },
+  { key:'wind_speed_10m',            label:'Vent moyen',                     unit:'km/h', a:true,  b:true,  c:true,  d:true,  defaultOn:true },
+  { key:'wind_gusts_10m',            label:'Rafales',                        unit:'km/h', a:true,  b:true,  c:true,  d:true,  defaultOn:true },
+  { key:'wind_direction_10m',        label:'Direction du vent',              unit:'°',    a:true,  b:true,  c:true,  d:true,  defaultOn:false },
+  { key:'cloud_cover',               label:'Nébulosité',                     unit:'%',    a:true,  b:false, c:true,  d:false, defaultOn:false },
+  { key:'surface_pressure',          label:'Pression',                       unit:'hPa',  a:true,  b:false, c:true,  d:false, defaultOn:false },
+  { key:'cape',                      label:'Énergie convective (CAPE)',      unit:'J/kg', a:false, b:true,  c:false, d:true,  defaultOn:false },
+  { key:'weather_code',              label:'Code temps / orage',             unit:'',     a:true,  b:true,  c:true,  d:true,  defaultOn:true },
+];
+
+const WMO = {
+  0:'Ciel clair', 1:'Généralement clair', 2:'Partiellement nuageux', 3:'Couvert',
+  45:'Brouillard', 48:'Brouillard givrant',
+  51:'Bruine légère', 53:'Bruine modérée', 55:'Bruine dense',
+  56:'Bruine verglaçante légère', 57:'Bruine verglaçante dense',
+  61:'Pluie légère', 63:'Pluie modérée', 65:'Pluie forte',
+  66:'Pluie verglaçante légère', 67:'Pluie verglaçante forte',
+  71:'Neige légère', 73:'Neige modérée', 75:'Neige forte', 77:'Grains de neige',
+  80:'Averses légères', 81:'Averses modérées', 82:'Averses violentes',
+  85:'Averses de neige légères', 86:'Averses de neige fortes',
+  95:'Orage', 96:'Orage avec grêle légère', 99:'Orage avec grêle forte'
+};
+const STORM_CODES = [95,96,99];
+
+const PANEL_CONFIG = {
+  a: { host:'https://archive-api.open-meteo.com/v1/archive', block:'hourly',      label:'historique_horaire' },
+  b: { host:'https://api.open-meteo.com/v1/forecast',        block:'minutely_15', label:'historique_15min' },
+  c: { host:'https://api.open-meteo.com/v1/forecast',        block:'hourly',      label:'prevision_horaire' },
+  d: { host:'https://api.open-meteo.com/v1/forecast',        block:'minutely_15', label:'prevision_15min' },
+};
+
+function isoDate(d){
+  const p = n => String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
+}
+function frDateTime(iso){
+  const [datePart, timePart] = iso.split('T');
+  const [y,m,d] = datePart.split('-');
+  return `${d}/${m}/${y} ${timePart}`;
+}
+
+function buildVarGrid(container, panelKey){
+  container.innerHTML = '';
+  VARS.filter(v => v[panelKey]).forEach(v => {
+    const id = `${panelKey}-var-${v.key}`;
+    const wrap = document.createElement('label');
+    wrap.className = 'var-item' + (v.mandatory ? ' mandatory' : '');
+    wrap.setAttribute('for', id);
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.id = id;
+    cb.dataset.key = v.key;
+    cb.checked = v.defaultOn || v.mandatory;
+    if(v.mandatory){ cb.checked = true; cb.disabled = true; }
+    wrap.appendChild(cb);
+    const span = document.createElement('span');
+    span.textContent = v.unit ? `${v.label} (${v.unit})` : v.label;
+    wrap.appendChild(span);
+    container.appendChild(wrap);
+  });
+}
+
+function selectedKeys(container){
+  return Array.from(container.querySelectorAll('input[type=checkbox]'))
+    .filter(cb => cb.checked)
+    .map(cb => cb.dataset.key);
+}
+
+function orderedColumns(keys){
+  const cols = [{ key:'__date', label:'Date' }];
+  VARS.forEach(v => {
+    if(v.key === 'temperature_2m' || keys.includes(v.key)){
+      if(v.key !== 'temperature_2m' && !keys.includes(v.key)) return;
+      cols.push({ key:v.key, label:v.unit ? `${v.label} (${v.unit})` : v.label });
+      if(v.key === 'weather_code'){
+        cols.push({ key:'__desc', label:'Temps observé' });
+        cols.push({ key:'__storm', label:'Orage' });
+      }
+    }
+  });
+  return cols;
+}
+
+function buildRows(times, series, cols){
+  return times.map((t, i) => {
+    const row = {};
+    cols.forEach(c => {
+      if(c.key === '__date') row[c.key] = t;
+      else if(c.key === '__desc'){
+        const code = series['weather_code'] ? series['weather_code'][i] : null;
+        row[c.key] = (code !== null && code !== undefined && WMO[code]) ? WMO[code] : '';
+      } else if(c.key === '__storm'){
+        const code = series['weather_code'] ? series['weather_code'][i] : null;
+        row[c.key] = STORM_CODES.includes(code) ? 'Oui' : 'Non';
+      } else {
+        row[c.key] = series[c.key] ? series[c.key][i] : null;
+      }
+    });
+    return row;
+  });
+}
+
+function renderTable(tableEl, cols, rows, previewLimit){
+  tableEl.innerHTML = '';
+  const thead = document.createElement('thead');
+  const trh = document.createElement('tr');
+  cols.forEach(c => {
+    const th = document.createElement('th');
+    th.textContent = c.label;
+    trh.appendChild(th);
+  });
+  thead.appendChild(trh);
+  tableEl.appendChild(thead);
+
+  const tbody = document.createElement('tbody');
+  rows.slice(0, previewLimit).forEach(r => {
+    const tr = document.createElement('tr');
+    cols.forEach(c => {
+      const td = document.createElement('td');
+      let val = r[c.key];
+      if(c.key === '__date'){
+        td.textContent = frDateTime(val);
+      } else if(c.key === '__storm' && val === 'Oui'){
+        const pill = document.createElement('span');
+        pill.className = 'pill-storm';
+        pill.textContent = 'Orage';
+        td.appendChild(pill);
+      } else {
+        td.textContent = (val === null || val === undefined || val === '') ? '—' : val;
+      }
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+  tableEl.appendChild(tbody);
+}
+
+function toXLSX(cols, rows, filename){
+  const header = cols.map(c => c.label);
+  const data = rows.map(r => cols.map(c => {
+    let val = r[c.key];
+    if(c.key === '__date') return frDateTime(val);
+    return val === null || val === undefined ? '' : val;
+  }));
+  const ws = XLSX.utils.aoa_to_sheet([header, ...data]);
+  ws['!cols'] = cols.map(() => ({ wch: 16 }));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Montsouris');
+  XLSX.writeFile(wb, filename);
+}
+
+async function fetchAndRender(panel){
+  const cfg = PANEL_CONFIG[panel];
+  const startEl = document.getElementById(`${panel}-start`);
+  const endEl = document.getElementById(`${panel}-end`);
+  const varsEl = document.getElementById(`${panel}-vars`);
+  const runBtn = document.getElementById(`${panel}-run`);
+  const statusEl = document.getElementById(`${panel}-status`);
+  const resultEl = document.getElementById(`${panel}-result`);
+  const tableEl = document.getElementById(`${panel}-table`);
+  const countEl = document.getElementById(`${panel}-count`);
+  const downloadBtn = document.getElementById(`${panel}-download`);
+
+  const start = startEl.value, end = endEl.value;
+  statusEl.classList.remove('error');
+  if(!start || !end){
+    statusEl.textContent = 'Choisis une date de début et une date de fin.';
+    statusEl.classList.add('error');
+    return;
+  }
+  if(new Date(start) > new Date(end)){
+    statusEl.textContent = 'La date de début doit précéder la date de fin.';
+    statusEl.classList.add('error');
+    return;
+  }
+
+  const keys = selectedKeys(varsEl);
+  if(!keys.includes('temperature_2m')) keys.unshift('temperature_2m');
+  const cols = orderedColumns(keys);
+
+  runBtn.disabled = true;
+  statusEl.textContent = 'Récupération des données en cours…';
+
+  try{
+    const url = `${cfg.host}?latitude=${LAT}&longitude=${LON}`
+      + `&start_date=${start}&end_date=${end}`
+      + `&${cfg.block}=${keys.join(',')}`
+      + `&timezone=Europe%2FParis&wind_speed_unit=kmh&precipitation_unit=mm`;
+
+    const res = await fetch(url);
+    const json = await res.json();
+    if(json.error){ throw new Error(json.reason || 'Erreur inconnue renvoyée par Open-Meteo.'); }
+
+    const block = json[cfg.block];
+    if(!block || !block.time || block.time.length === 0){
+      statusEl.textContent = 'Aucune donnée disponible pour cette période.';
+      resultEl.style.display = 'none';
+      return;
+    }
+
+    const rows = buildRows(block.time, block, cols);
+    renderTable(tableEl, cols, rows, 500);
+    countEl.textContent = `${rows.length.toLocaleString('fr-FR')} lignes${rows.length > 500 ? ' (aperçu limité à 500, export complet dans le fichier)' : ''}`;
+    resultEl.style.display = 'block';
+    statusEl.textContent = `Terminé — ${rows.length.toLocaleString('fr-FR')} pas de temps récupérés.`;
+
+    downloadBtn.disabled = false;
+    downloadBtn.onclick = () => {
+      toXLSX(cols, rows, `paris-montsouris_${cfg.label}_${start}_${end}.xlsx`);
+    };
+  } catch(err){
+    console.error(err);
+    statusEl.textContent = `Échec de la récupération : ${err.message}`;
+    statusEl.classList.add('error');
+    resultEl.style.display = 'none';
+  } finally {
+    runBtn.disabled = false;
+  }
+}
+
+['a','b','c','d'].forEach(p => buildVarGrid(document.getElementById(`${p}-vars`), p));
+
+const today = new Date();
+const yesterday = new Date(today); yesterday.setDate(yesterday.getDate() - 1);
+const monthAgo = new Date(today); monthAgo.setDate(monthAgo.getDate() - 30);
+const ninetyDaysAgo = new Date(today); ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 92);
+const weekAgo = new Date(today); weekAgo.setDate(weekAgo.getDate() - 7);
+const in3Days = new Date(today); in3Days.setDate(in3Days.getDate() + 3);
+const in2Days = new Date(today); in2Days.setDate(in2Days.getDate() + 2);
+const in16Days = new Date(today); in16Days.setDate(in16Days.getDate() + 16);
+const in4Days = new Date(today); in4Days.setDate(in4Days.getDate() + 4);
+
+document.getElementById('a-end').value = isoDate(yesterday);
+document.getElementById('a-end').max = isoDate(yesterday);
+document.getElementById('a-start').value = isoDate(monthAgo);
+document.getElementById('a-start').max = isoDate(yesterday);
+
+document.getElementById('b-start').min = isoDate(ninetyDaysAgo);
+document.getElementById('b-start').max = isoDate(yesterday);
+document.getElementById('b-end').min = isoDate(ninetyDaysAgo);
+document.getElementById('b-end').max = isoDate(yesterday);
+document.getElementById('b-end').value = isoDate(yesterday);
+document.getElementById('b-start').value = isoDate(weekAgo);
+
+document.getElementById('c-start').min = isoDate(today);
+document.getElementById('c-start').max = isoDate(in16Days);
+document.getElementById('c-end').min = isoDate(today);
+document.getElementById('c-end').max = isoDate(in16Days);
+document.getElementById('c-start').value = isoDate(today);
+document.getElementById('c-end').value = isoDate(in3Days);
+
+document.getElementById('d-start').min = isoDate(today);
+document.getElementById('d-start').max = isoDate(in4Days);
+document.getElementById('d-end').min = isoDate(today);
+document.getElementById('d-end').max = isoDate(in4Days);
+document.getElementById('d-start').value = isoDate(today);
+document.getElementById('d-end').value = isoDate(in2Days);
+
+['a','b','c','d'].forEach(p => {
+  document.getElementById(`${p}-run`).addEventListener('click', () => fetchAndRender(p));
+});
+</script>
+</body>
+</html>
 
